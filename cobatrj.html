@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trajectory Mapper - Pixhawk GPS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            overflow: hidden;
+        }
+        
+        #container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        #sidebar {
+            width: 300px;
+            background: #16213e;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+        }
+        
+        #canvasContainer {
+            flex: 1;
+            position: relative;
+            background: #0f1419;
+        }
+        
+        canvas {
+            display: block;
+            cursor: grab;
+        }
+        
+        canvas:active {
+            cursor: grabbing;
+        }
+        
+        h2 {
+            color: #00d9ff;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 2px solid #00d9ff;
+            padding-bottom: 8px;
+        }
+        
+        .data-group {
+            margin-bottom: 20px;
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 3px solid #00d9ff;
+        }
+        
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+        
+        .label {
+            color: #aaa;
+            font-weight: 500;
+        }
+        
+        .value {
+            color: #00ff88;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .status-online {
+            background: #00ff88;
+            box-shadow: 0 0 8px #00ff88;
+        }
+        
+        .status-offline {
+            background: #ff4444;
+            box-shadow: 0 0 8px #ff4444;
+        }
+        
+        .status-warning {
+            background: #ffaa00;
+            box-shadow: 0 0 8px #ffaa00;
+        }
+        
+        .controls {
+            margin-top: 15px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #00d9ff;
+            border: none;
+            border-radius: 4px;
+            color: #000;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background: #00ffbb;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 217, 255, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-danger {
+            background: #ff4444;
+        }
+        
+        .btn-danger:hover {
+            background: #ff6666;
+        }
+        
+        .btn-success {
+            background: #00ff88;
+        }
+        
+        .btn-success:hover {
+            background: #00ffbb;
+        }
+        
+        #stats {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 12px 18px;
+            border-radius: 6px;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+        }
+        
+        #stats div {
+            margin: 4px 0;
+        }
+        
+        .compass {
+            width: 80px;
+            height: 80px;
+            margin: 15px auto;
+            position: relative;
+            background: radial-gradient(circle, #1a1a2e 0%, #0f1419 100%);
+            border-radius: 50%;
+            border: 2px solid #00d9ff;
+        }
+        
+        .compass-needle {
+            position: absolute;
+            width: 4px;
+            height: 35px;
+            background: linear-gradient(to bottom, #ff4444 0%, #00ff88 100%);
+            left: 50%;
+            top: 10px;
+            transform-origin: center 30px;
+            border-radius: 2px;
+        }
+        
+        .compass-center {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #00d9ff;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px #00d9ff;
+        }
+        
+        .connection-group {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border-left: 3px solid #ffaa00;
+        }
+        
+        .connection-status {
+            font-size: 12px;
+            margin: 5px 0;
+        }
+        
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            background: #1a1a2e;
+            border: 1px solid #00d9ff;
+            border-radius: 4px;
+            color: #eee;
+            font-size: 12px;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #00ffbb;
+            box-shadow: 0 0 8px rgba(0, 255, 187, 0.3);
+        }
+        
+        .log-container {
+            max-height: 150px;
+            overflow-y: auto;
+            background: #0f1419;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 4px;
+        }
+        
+        .log-info { color: #00d9ff; }
+        .log-success { color: #00ff88; }
+        .log-error { color: #ff4444; }
+        .log-warning { color: #ffaa00; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="sidebar">
+            <h2>🔌 Connection Settings</h2>
+            
+            <div class="connection-group">
+                <div class="data-item">
+                    <span class="label">Flask Server:</span>
+                </div>
+                <input type="text" id="ipAddress" value="http://192.168.1.100:5001" placeholder="http://IP:PORT">
+                
+                <div class="connection-status">
+                    <span class="status-indicator status-offline" id="flaskLed"></span>
+                    <span id="flaskStatus">Disconnected</span>
+                </div>
+                
+                <button onclick="connectFlask()" id="connectBtn" class="btn-success">🔗 Connect</button>
+                <button onclick="disconnectFlask()" id="disconnectBtn" class="btn-danger" disabled>⚠️ Disconnect</button>
+            </div>
+            
+            <h2>📡 Vehicle Telemetry</h2>
+            
+            <div class="data-group">
+                <div class="data-item">
+                    <span class="label">MAVLink:</span>
+                    <span class="value">
+                        <span class="status-indicator status-offline" id="statusLed"></span>
+                        <span id="statusText">STANDBY</span>
+                    </span>
+                </div>
+                <div class="data-item">
+                    <span class="label">Mode:</span>
+                    <span class="value" id="modeText">-</span>
+                </div>
+                <div class="data-item">
+                    <span class="label">Armable:</span>
+                    <span class="value" id="armableText">-</span>
+                </div>
+            </div>
+            
+            <div class="data-group">
+                <h3 style="color: #00d9ff; font-size: 14px; margin-bottom: 10px;">📍 Position</h3>
+                <div class="data-item">
+                    <span class="label">Latitude:</span>
+                    <span class="value" id="latText">0.000000</span>
+                </div>
+                <div class="data-item">
+                    <span class="label">Longitude:</span>
+                    <span class="value" id="lonText">0.000000</span>
+                </div>
+                <div class="data-item">
+                    <span class="label">Altitude:</span>
+                    <span class="value" id="altText">0.0 m</span>
+                </div>
+                <div class="data-item">
+                    <span class="label">Waypoint:</span>
+                    <span class="value" id="wpText">0</span>
+                </div>
+            </div>
+            
+            <div class="data-group">
+                <h3 style="color: #00d9ff; font-size: 14px; margin-bottom: 10px;">⚡ System</h3>
+                <div class="data-item">
+                    <span class="label">Battery:</span>
+                    <span class="value" id="batteryText">0%</span>
+                </div>
+                <div class="data-item">
+                    <span class="label">Heartbeat:</span>
+                    <span class="value" id="heartbeatText">-</span>
+                </div>
+                <div class="data-item">
+                    <span class="label">System:</span>
+                    <span class="value" id="sysStatusText">-</span>
+                </div>
+            </div>
+            
+            <div class="data-group">
+                <h3 style="color: #00d9ff; font-size: 14px; margin-bottom: 10px;">🧭 Orientation</h3>
+                <div class="compass">
+                    <div class="compass-needle" id="compassNeedle"></div>
+                    <div class="compass-center"></div>
+                </div>
+                <div class="data-item">
+                    <span class="label">Yaw:</span>
+                    <span class="value" id="yawText">0°</span>
+                </div>
+                <div class="data-item">
+                    <span class="label">Pitch:</span>
+                    <span class="value" id="pitchText">0°</span>
+                </div>
+                <div class="data-item">
+                    <span class="label">Roll:</span>
+                    <span class="value" id="rollText">0°</span>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button onclick="resetView()">🎯 Reset View</button>
+                <button onclick="clearTrajectory()" class="btn-danger">🗑️ Clear Trajectory</button>
+            </div>
+            
+            <h2>📋 Activity Log</h2>
+            <div class="log-container" id="logContainer"></div>
+        </div>
+        
+        <div id="canvasContainer">
+            <canvas id="trajectoryCanvas"></canvas>
+            <div id="stats">
+                <div>Zoom: <span id="zoomLevel">1.00x</span></div>
+                <div>Points: <span id="pointCount">0</span></div>
+                <div>Distance: <span id="totalDistance">0.0m</span></div>
+                <div>Update Rate: <span id="updateRate">0 Hz</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        let config = {
+            ipAddress: "http://192.168.1.100:5001",
+            updateInterval: 100, // ms
+            reconnectInterval: 3000 // ms
+        };
+        
+        // Canvas setup
+        const canvas = document.getElementById('trajectoryCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // State
+        let vehicleData = {
+            app_connect: false,
+            alt: 0,
+            battery: 0,
+            date: "",
+            is_armable: false,
+            last_heartbeat: "",
+            lat: 0,
+            long: 0,
+            mode: "",
+            pitch: 0,
+            roll: 0,
+            surface_camera_connect: true,
+            system_status: "",
+            time: "",
+            underwater_camera_connect: false,
+            yaw: 0,
+            current_wp: 0,
+        };
+        
+        let trajectory = [];
+        let originLat = null;
+        let originLon = null;
+        let scale = 111000; // meter per degree (average)
+        let zoom = 1;
+        let panX = 0;
+        let panY = 0;
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        
+        // Connection state
+        let isConnected = false;
+        let updateTimer = null;
+        let reconnectTimer = null;
+        let wsConnection = null;
+        let lastUpdateTime = Date.now();
+        let updateCount = 0;
+        let updateRateTimer = null;
+        
+        // Resize canvas
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            draw();
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        
+        // Logging
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Keep only last 50 entries
+            while (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+        
+        // GPS to XY conversion
+        function gpsToXY(lat, lon) {
+            if (originLat === null || originLon === null) {
+                originLat = lat;
+                originLon = lon;
+                addLog(`Origin set: ${lat.toFixed(6)}, ${lon.toFixed(6)}`, 'success');
+                return { x: 0, y: 0 };
+            }
+            
+            // Haversine-like conversion to meters
+            const latDiff = (lat - originLat) * scale;
+            const lonDiff = (lon - originLon) * scale * Math.cos(originLat * Math.PI / 180);
+            
+            return {
+                x: lonDiff,
+                y: -latDiff
+            };
+        }
+        
+        // World to screen coordinates
+        function worldToScreen(worldX, worldY) {
+            return {
+                x: canvas.width / 2 + (worldX * zoom) + panX,
+                y: canvas.height / 2 + (worldY * zoom) + panY
+            };
+        }
+        
+        // Draw boat icon
+        function drawBoat(x, y, heading) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate((heading * Math.PI) / 180);
+            
+            // Boat body
+            ctx.beginPath();
+            ctx.moveTo(0, -15);
+            ctx.lineTo(-8, 10);
+            ctx.lineTo(8, 10);
+            ctx.closePath();
+            
+            ctx.fillStyle = vehicleData.app_connect ? '#00d9ff' : '#666';
+            ctx.fill();
+            ctx.strokeStyle = vehicleData.app_connect ? '#00ffbb' : '#888';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Direction indicator
+            ctx.beginPath();
+            ctx.moveTo(0, -15);
+            ctx.lineTo(0, -25);
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        // Draw grid
+        function drawGrid() {
+            ctx.strokeStyle = 'rgba(0, 217, 255, 0.1)';
+            ctx.lineWidth = 1;
+            
+            const gridSize = 50 * zoom;
+            const offsetX = (canvas.width / 2 + panX) % gridSize;
+            const offsetY = (canvas.height / 2 + panY) % gridSize;
+            
+            for (let x = offsetX; x < canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            for (let y = offsetY; y < canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // Center axes
+            const centerX = canvas.width / 2 + panX;
+            const centerY = canvas.height / 2 + panY;
+            
+            ctx.strokeStyle = 'rgba(255, 68, 68, 0.3)';
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX, 0);
+            ctx.lineTo(centerX, canvas.height);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(canvas.width, centerY);
+            ctx.stroke();
+        }
+        
+        // Draw trajectory
+        function draw() {
+            ctx.fillStyle = '#0f1419';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            drawGrid();
+            
+            // Draw trajectory line
+            if (trajectory.length > 1) {
+                ctx.beginPath();
+                ctx.strokeStyle = '#00ff88';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#00ff88';
+                ctx.shadowBlur = 5;
+                
+                let first = true;
+                trajectory.forEach(point => {
+                    const screen = worldToScreen(point.x, point.y);
+                    if (first) {
+                        ctx.moveTo(screen.x, screen.y);
+                        first = false;
+                    } else {
+                        ctx.lineTo(screen.x, screen.y);
+                    }
+                });
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                
+                // Draw points
+                trajectory.forEach((point, index) => {
+                    const screen = worldToScreen(point.x, point.y);
+                    ctx.beginPath();
+                    ctx.arc(screen.x, screen.y, 3, 0, 2 * Math.PI);
+                    ctx.fillStyle = index === trajectory.length - 1 ? '#ff4444' : '#00d9ff';
+                    ctx.fill();
+                });
+            }
+            
+            // Draw current boat
+            if (trajectory.length > 0) {
+                const currentPos = trajectory[trajectory.length - 1];
+                const screen = worldToScreen(currentPos.x, currentPos.y);
+                drawBoat(screen.x, screen.y, vehicleData.yaw);
+            }
+            
+            // Draw origin
+            if (originLat !== null) {
+                const origin = worldToScreen(0, 0);
+                ctx.beginPath();
+                ctx.arc(origin.x, origin.y, 6, 0, 2 * Math.PI);
+                ctx.strokeStyle = '#ff4444';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
+                ctx.fill();
+            }
+        }
+        
+        // Update vehicle data
+        function updateVehicleData(newData) {
+            Object.assign(vehicleData, newData);
+            
+            // Add to trajectory
+            if (vehicleData.lat !== 0 && vehicleData.long !== 0) {
+                const pos = gpsToXY(vehicleData.lat, vehicleData.long);
+                
+                if (trajectory.length === 0 || 
+                    Math.hypot(pos.x - trajectory[trajectory.length - 1].x, 
+                              pos.y - trajectory[trajectory.length - 1].y) > 0.3) {
+                    trajectory.push(pos);
+                }
+            }
+            
+            updateCount++;
+            updateUI();
+            draw();
+        }
+        
+        // Update UI
+        function updateUI() {
+            document.getElementById('statusLed').className = 
+                vehicleData.app_connect ? 'status-indicator status-online' : 'status-indicator status-offline';
+            document.getElementById('statusText').textContent = 
+                vehicleData.app_connect ? 'CONNECTED' : 'DISCONNECTED';
+            document.getElementById('modeText').textContent = vehicleData.mode || '-';
+            document.getElementById('armableText').textContent = vehicleData.is_armable ? 'YES' : 'NO';
+            document.getElementById('latText').textContent = vehicleData.lat.toFixed(6);
+            document.getElementById('lonText').textContent = vehicleData.long.toFixed(6);
+            document.getElementById('altText').textContent = vehicleData.alt.toFixed(1) + ' m';
+            document.getElementById('wpText').textContent = vehicleData.current_wp;
+            document.getElementById('batteryText').textContent = vehicleData.battery + '%';
+            document.getElementById('heartbeatText').textContent = vehicleData.last_heartbeat || '-';
+            document.getElementById('sysStatusText').textContent = vehicleData.system_status || '-';
+            document.getElementById('yawText').textContent = vehicleData.yaw.toFixed(1) + '°';
+            document.getElementById('pitchText').textContent = vehicleData.pitch.toFixed(1) + '°';
+            document.getElementById('rollText').textContent = vehicleData.roll.toFixed(1) + '°';
+            
+            document.getElementById('compassNeedle').style.transform = 
+                `translateX(-50%) rotate(${vehicleData.yaw}deg)`;
+            
+            document.getElementById('zoomLevel').textContent = zoom.toFixed(2) + 'x';
+            document.getElementById('pointCount').textContent = trajectory.length;
+            
+            // Calculate distance
+            let totalDist = 0;
+            for (let i = 1; i < trajectory.length; i++) {
+                const dx = trajectory[i].x - trajectory[i - 1].x;
+                const dy = trajectory[i].y - trajectory[i - 1].y;
+                totalDist += Math.sqrt(dx * dx + dy * dy);
+            }
+            document.getElementById('totalDistance').textContent = totalDist.toFixed(1) + 'm';
+        }
+        
+        // Calculate update rate
+        setInterval(() => {
+            const rate = updateCount;
+            document.getElementById('updateRate').textContent = rate + ' Hz';
+            updateCount = 0;
+        }, 1000);
+        
+        // Flask connection
+        async function connectFlask() {
+            config.ipAddress = document.getElementById('ipAddress').value.trim();
+            
+            if (!config.ipAddress) {
+                addLog('Error: IP address cannot be empty', 'error');
+                return;
+            }
+            
+            addLog(`Connecting to ${config.ipAddress}...`, 'info');
+            
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('flaskStatus').textContent = 'Connecting...';
+            document.getElementById('flaskLed').className = 'status-indicator status-warning';
+            
+            try {
+                // Try WebSocket first
+                await tryWebSocket();
+            } catch (e) {
+                // Fallback to HTTP polling
+                addLog('WebSocket unavailable, using HTTP polling', 'warning');
+                startPolling();
+            }
+        }
+        
+        // WebSocket connection
+        function tryWebSocket() {
+            return new Promise((resolve, reject) => {
+                const wsUrl = config.ipAddress.replace('http', 'ws') + '/ws';
+                
+                try {
+                    wsConnection = new WebSocket(wsUrl);
+                    
+                    wsConnection.onopen = () => {
+                        isConnected = true;
+                        document.getElementById('flaskStatus').textContent = 'Connected (WebSocket)';
+                        document.getElementById('flaskLed').className = 'status-indicator status-online';
+                        document.getElementById('connectBtn').disabled = true;
+                        document.getElementById('disconnectBtn').disabled = false;
+                        addLog('WebSocket connected!', 'success');
+                        resolve();
+                    };
+                    
+                    wsConnection.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            updateVehicleData(data);
+                        } catch (e) {
+                            addLog('Error parsing WebSocket data', 'error');
+                        }
+                    };
+                    
+                    wsConnection.onerror = () => {
+                        reject(new Error('WebSocket error'));
+                    };
+                    
+                    wsConnection.onclose = () => {
+                        if (isConnected) {
+                            addLog('WebSocket disconnected', 'warning');
+                            isConnected = false;
+                            updateConnectionUI(false);
+                            attemptReconnect();
+                        }
+                    };
+                    
+                    setTimeout(() => {
+                        if (!isConnected) {
+                            wsConnection.close();
+                            reject(new Error('WebSocket timeout'));
+                        }
+                    }, 3000);
+                    
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
+        
+        // HTTP Polling
+        function startPolling() {
+            isConnected = true;
+            document.getElementById('flaskStatus').textContent = 'Connected (HTTP)';
+            document.getElementById('flaskLed').className = 'status-indicator status-online';
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('disconnectBtn').disabled = false;
+            addLog('HTTP polling started', 'success');
+            
+            updateTimer = setInterval(fetchData, config.updateInterval);
+        }
+        
+        // Fetch data from Flask
+        async function fetchData() {
+            try {
+                const response = await fetch(`${config.ipAddress}/vehicle_data`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                updateVehicleData(data);
+                
+            } catch (error) {
+                addLog(`Fetch error: ${error.message}`, 'error');
+                disconnectFlask();
+                attemptReconnect();
+            }
+        }
+        
+        // Disconnect
+        function disconnectFlask() {
+            isConnected = false;
+            
+            if (updateTimer) {
+                clearInterval(updateTimer);
+                updateTimer = null;
+            }
+            
+            if (wsConnection) {
+                wsConnection.close();
+                wsConnection = null;
+            }
+            
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            
+            updateConnectionUI(false);
+            addLog('Disconnected from Flask', 'info');
+        }
+        
+        // Update connection UI
+        function updateConnectionUI(connected) {
+            document.getElementById('flaskStatus').textContent = connected ? 'Connected' : 'Disconnected';
+            document.getElementById('flaskLed').className = 
+                connected ? 'status-indicator status-online' : 'status-indicator status-offline';
+            document.getElementById('connectBtn').disabled = connected;
+            document.getElementById('disconnectBtn').disabled = !connected;
+        }
+        
+        // Auto reconnect
+        function attemptReconnect() {
+            if (reconnectTimer) return;
+            
+            addLog(`Reconnecting in ${config.reconnectInterval/1000}s...`, 'warning');
+            
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                connectFlask();
+            }, config.reconnectInterval);
+        }
+        
+        // Mouse controls
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSpeed = 0.1;
+            const delta = e.deltaY > 0 ? -zoomSpeed : zoomSpeed;
+            zoom = Math.max(0.1, Math.min(10, zoom + delta));
+            draw();
+        });
+        
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                panX += e.clientX - lastMouseX;
+                panY += e.clientY - lastMouseY;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                draw();
+            }
+        });
+        
+        canvas.addEventListener('mouseup', () => isDragging = false);
+        canvas.addEventListener('mouseleave', () => isDragging = false);
+        
+        // Controls
+        function resetView() {
+            zoom = 1;
+            panX = 0;
+            panY = 0;
+            draw();
+            addLog('View reset', 'info');
+        }
+        
+        function clearTrajectory() {
+            if (confirm('Clear trajectory history?')) {
+                trajectory = [];
+                originLat = null;
+                originLon = null;
+                draw();
+                addLog('Trajectory cleared', 'warning');
+            }
+        }
+        
+        // Initial draw
+        draw();
+        addLog('Trajectory Mapper initialized', 'success');
+        addLog('Ready to connect to Flask server', 'info');
+        
+        console.log('🚀 Trajectory Mapper Ready!');
+    </script>
+</body>
+</html>

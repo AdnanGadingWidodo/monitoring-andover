@@ -1,0 +1,38 @@
+<div class="col-md-4">
+	<div class="card card-custom p-3">
+		<div class="card-title"><i class="fas fa-map-marked-alt me-2"></i>TRAJECTORY</div>
+		<div id="canvasContainer" style="position: relative;">
+			<canvas id="gpsCanvas" width="600" height="600"></canvas>
+		</div>
+		
+		<!-- BUG FIX: Gunakan Alpine.js @click bukan onclick -->
+		<div class="d-flex flex-wrap gap-2 mt-3">
+			<button class="btn btn-sm btn-success flex-grow-1" @click="startGPSTracking()">
+				<i class="fas fa-play me-1"></i>Start Tracking
+			</button>
+			<button class="btn btn-sm btn-warning flex-grow-1" @click="stopGPSTracking()">
+				<i class="fas fa-stop me-1"></i>Stop Tracking
+			</button>
+			<button class="btn btn-sm btn-danger flex-grow-1" @click="clearGPSPath()">
+				<i class="fas fa-trash me-1"></i>Clear
+			</button>
+		</div>
+
+		<!-- Info GPS Status -->
+		<div class="mt-3 p-2 bg-light rounded">
+			<small class="text-muted d-block">
+				<i class="fas fa-info-circle me-1"></i>GPS Status: 
+				<span x-text="gpsTracker.isTracking ? 'Tracking Active' : 'Inactive'" 
+				      :class="gpsTracker.isTracking ? 'text-success fw-bold' : 'text-secondary'"></span>
+			</small>
+			<small class="text-muted d-block mt-1">
+				<i class="fas fa-route me-1"></i>Path Points: 
+				<span x-text="gpsTracker.path.length" class="fw-bold"></span>
+			</small>
+			<small class="text-muted d-block mt-1" x-show="gpsTracker.totalDistance > 0">
+				<i class="fas fa-ruler me-1"></i>Distance: 
+				<span x-text="gpsTracker.totalDistance.toFixed(2) + ' m'" class="fw-bold"></span>
+			</small>
+		</div>
+	</div>
+</div>
